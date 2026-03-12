@@ -2,4 +2,5 @@
 pkill -f nwg-dock-hyprland 2>/dev/null
 sleep 0.5
 rm -f /tmp/nwg-dock-*.lock 2>/dev/null
+echo "DP-1" > /tmp/nwg-dock-monitor
 exec nwg-dock-hyprland -p right -x -o DP-1 -i 48 -r -nolauncher
