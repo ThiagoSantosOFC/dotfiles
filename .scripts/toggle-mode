@@ -1,0 +1,12 @@
+#!/bin/bash
+if pgrep -f nwg-dock-hyprland > /dev/null; then
+    pkill -f nwg-dock-hyprland
+    hyprctl keyword general:gaps_in 2
+    hyprctl keyword general:gaps_out 4
+    notify-send "Modo Eficiência" "Dock desligada • gaps compactos" -i preferences-system
+else
+    WAYLAND_DISPLAY=wayland-1 nwg-dock-hyprland -p right -x -o DP-1 -i 48 &disown
+    hyprctl keyword general:gaps_in 4
+    hyprctl keyword general:gaps_out 8
+    notify-send "Modo Chill" "Dock ligada • layout relaxado" -i preferences-desktop
+fi

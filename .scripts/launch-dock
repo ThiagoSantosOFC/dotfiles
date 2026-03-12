@@ -1,0 +1,5 @@
+#!/bin/bash
+pkill -f nwg-dock-hyprland 2>/dev/null
+sleep 0.5
+rm -f /tmp/nwg-dock-*.lock 2>/dev/null
+exec nwg-dock-hyprland -p right -x -o DP-1 -i 48 -r -nolauncher

@@ -1,0 +1,12 @@
+#!/bin/bash
+# Dolphin wrapper: sets the full Qt/KDE environment so Dolphin renders
+# with the Catppuccin Mocha Blue color scheme and Kvantum style.
+# - QT_QPA_PLATFORMTHEME=kde  → loads KColorScheme from kdeglobals (text #CDD6F4)
+# - QT_STYLE_OVERRIDE=kvantum → applies Kvantum Catppuccin widget styling
+# - KDE_FULL_SESSION/KDE_SESSION_VERSION → KDE integration hints
+# DO NOT set QT_QPA_PLATFORMTHEME=kde globally — it breaks other Qt apps (qt6ct).
+export QT_QPA_PLATFORMTHEME=kde
+export QT_STYLE_OVERRIDE=kvantum
+export KDE_FULL_SESSION=true
+export KDE_SESSION_VERSION=6
+exec dolphin "$@"
