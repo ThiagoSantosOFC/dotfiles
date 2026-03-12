@@ -19,5 +19,5 @@ else
     echo "$MONITOR" > /tmp/nwg-dock-monitor
     echo "visible" > /tmp/nwg-dock-state
     XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 \
-        nwg-dock-hyprland -p right -x -o "$MONITOR" -i 48 -r -nolauncher &
+        nwg-dock-hyprland -p right -o "$MONITOR" -i 48 -r -nolauncher &
 fi

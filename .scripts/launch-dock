@@ -4,4 +4,4 @@ sleep 0.5
 rm -f /tmp/nwg-dock-*.lock 2>/dev/null
 echo "DP-1" > /tmp/nwg-dock-monitor
 echo "visible" > /tmp/nwg-dock-state
-exec nwg-dock-hyprland -p right -x -o DP-1 -i 48 -r -nolauncher
+exec nwg-dock-hyprland -p right -o DP-1 -i 48 -r -nolauncher
