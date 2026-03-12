@@ -1,5 +1,9 @@
 #!/bin/bash
 # Dotfiles install script — installs packages & symlinks configs
+#
+# Usage:
+#   ./install.sh            — skip existing configs, never overwrite
+#   ./install.sh --force    — backup existing configs and overwrite
 set -e
 
 # ── Colors ──────────────────────────────────────────────────────────────────
@@ -9,12 +13,15 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 info()    { echo -e "${CYAN}  →${RESET} $*"; }
 success() { echo -e "${GREEN}  ✓${RESET} $*"; }
 warn()    { echo -e "${YELLOW}  !${RESET} $*"; }
+skip()    { echo -e "  ${BOLD}–${RESET} $*"; }
 error()   { echo -e "${RED}  ✗${RESET} $*"; exit 1; }
 section() { echo -e "\n${BOLD}${CYAN}══ $* ══${RESET}"; }
 ask()     { echo -e "${YELLOW}  ?${RESET} $*"; }
 
 DOTFILES="$(cd "$(dirname "$0")" && pwd)"
 BACKUP="$HOME/.dotfiles-backup-$(date +%Y%m%d%H%M%S)"
+FORCE=false
+[[ "${1:-}" == "--force" ]] && FORCE=true
 
 # ── Arch check ───────────────────────────────────────────────────────────────
 if ! command -v pacman &>/dev/null; then
@@ -107,23 +114,29 @@ install_pkgs "Development" \
 
 # ── Containers (optional) ─────────────────────────────────────────────────────
 section "Containers (optional)"
-ask "Install a container runtime? [1] Docker  [2] Podman  [3] Skip"
-read -r container_choice
-case "$container_choice" in
-    1)
-        paru -S --needed --noconfirm docker docker-compose
-        sudo systemctl enable --now docker
-        sudo usermod -aG docker "$USER"
-        success "Docker installed — re-login for group to take effect"
-        ;;
-    2)
-        paru -S --needed --noconfirm podman podman-compose
-        success "Podman installed"
-        ;;
-    *)
-        info "Skipping containers"
-        ;;
-esac
+if command -v docker &>/dev/null; then
+    skip "Docker already installed"
+elif command -v podman &>/dev/null; then
+    skip "Podman already installed"
+else
+    ask "Install a container runtime? [1] Docker  [2] Podman  [3] Skip"
+    read -r container_choice
+    case "$container_choice" in
+        1)
+            paru -S --needed --noconfirm docker docker-compose
+            sudo systemctl enable --now docker
+            sudo usermod -aG docker "$USER"
+            success "Docker installed — re-login for group to take effect"
+            ;;
+        2)
+            paru -S --needed --noconfirm podman podman-compose
+            success "Podman installed"
+            ;;
+        *)
+            info "Skipping containers"
+            ;;
+    esac
+fi
 
 # ── Enable systemd services ───────────────────────────────────────────────────
 section "Services"
@@ -140,13 +153,17 @@ rustup default stable 2>/dev/null && success "Rust stable set"
 info "Updating tealdeer cache..."
 tldr --update 2>/dev/null && success "tldr cache updated"
 
-info "Configuring git to use delta as pager..."
-git config --global core.pager delta
-git config --global interactive.diffFilter "delta --color-only"
-git config --global delta.navigate true
-git config --global delta.side-by-side true
-git config --global merge.conflictStyle zdiff3
-success "git delta configured"
+if ! git config --global core.pager | grep -q delta 2>/dev/null; then
+    info "Configuring git delta pager..."
+    git config --global core.pager delta
+    git config --global interactive.diffFilter "delta --color-only"
+    git config --global delta.navigate true
+    git config --global delta.side-by-side true
+    git config --global merge.conflictStyle zdiff3
+    success "git delta configured"
+else
+    skip "git delta already configured"
+fi
 
 if [ ! -d "$HOME/.config/nvim" ]; then
     info "Cloning LazyVim starter..."
@@ -154,23 +171,48 @@ if [ ! -d "$HOME/.config/nvim" ]; then
     rm -rf "$HOME/.config/nvim/.git"
     success "LazyVim installed at ~/.config/nvim"
 else
-    warn "~/.config/nvim already exists — skipping LazyVim clone"
+    skip "~/.config/nvim already exists — skipping LazyVim"
 fi
 
 # ── Symlinks ──────────────────────────────────────────────────────────────────
-section "Dotfiles"
+section "Dotfiles${FORCE:+ (force mode — will overwrite)}"
 
 link() {
-    local src="$DOTFILES/$1"
-    local dst="$HOME/$1"
+    local rel="$1"
+    local src="$DOTFILES/$rel"
+    local dst="$HOME/$rel"
+
     mkdir -p "$(dirname "$dst")"
-    if [ -e "$dst" ] && [ ! -L "$dst" ]; then
-        mkdir -p "$BACKUP/$(dirname "$1")"
-        mv "$dst" "$BACKUP/$1"
-        warn "backed up: $1"
+
+    if [ -L "$dst" ]; then
+        if [ "$(readlink "$dst")" = "$src" ]; then
+            skip "already linked: $rel"
+            return
+        fi
+        if $FORCE; then
+            ln -sfn "$src" "$dst"
+            success "re-linked: $rel"
+        else
+            warn "symlink exists but points elsewhere: $rel (--force to update)"
+        fi
+        return
     fi
+
+    if [ -e "$dst" ]; then
+        if $FORCE; then
+            mkdir -p "$BACKUP/$(dirname "$rel")"
+            mv "$dst" "$BACKUP/$rel"
+            warn "backed up: $rel"
+            ln -sfn "$src" "$dst"
+            success "linked: $rel"
+        else
+            warn "skipping $rel — file exists (--force to backup & overwrite)"
+        fi
+        return
+    fi
+
     ln -sfn "$src" "$dst"
-    success "linked: $1"
+    success "linked: $rel"
 }
 
 link .zshrc
@@ -193,8 +235,13 @@ mkdir -p "$HOME/.scripts"
 for f in "$DOTFILES/.scripts/"*; do
     [ -e "$f" ] || continue
     name="$(basename "$f")"
-    ln -sfn "$f" "$HOME/.scripts/$name"
-    chmod +x "$HOME/.scripts/$name"
+    dst="$HOME/.scripts/$name"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$f" ]; then
+        skip "already linked: .scripts/$name"
+        continue
+    fi
+    ln -sfn "$f" "$dst"
+    chmod +x "$dst"
     success "linked: .scripts/$name"
 done
 
@@ -203,8 +250,10 @@ if [ "$SHELL" != "$(which zsh)" ]; then
     section "Default Shell"
     chsh -s "$(which zsh)"
     success "Default shell set to zsh (re-login to apply)"
+else
+    skip "zsh already default shell"
 fi
 
 echo -e "\n${GREEN}${BOLD}All done!${RESET}"
-[ -d "$BACKUP" ] && echo -e "${YELLOW}Previous files backed up to: $BACKUP${RESET}"
+$FORCE && [ -d "$BACKUP" ] && echo -e "${YELLOW}Previous files backed up to: $BACKUP${RESET}"
 echo -e "${CYAN}  →${RESET} Re-login or open a new terminal to apply shell changes."
