@@ -1,259 +1,102 @@
-#!/bin/bash
-# Dotfiles install script — installs packages & symlinks configs
-#
-# Usage:
-#   ./install.sh            — skip existing configs, never overwrite
-#   ./install.sh --force    — backup existing configs and overwrite
+#!/usr/bin/env bash
 set -e
 
-# ── Colors ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 
 info()    { echo -e "${CYAN}  →${RESET} $*"; }
 success() { echo -e "${GREEN}  ✓${RESET} $*"; }
 warn()    { echo -e "${YELLOW}  !${RESET} $*"; }
-skip()    { echo -e "  ${BOLD}–${RESET} $*"; }
 error()   { echo -e "${RED}  ✗${RESET} $*"; exit 1; }
 section() { echo -e "\n${BOLD}${CYAN}══ $* ══${RESET}"; }
-ask()     { echo -e "${YELLOW}  ?${RESET} $*"; }
 
 DOTFILES="$(cd "$(dirname "$0")" && pwd)"
-BACKUP="$HOME/.dotfiles-backup-$(date +%Y%m%d%H%M%S)"
-FORCE=false
-[[ "${1:-}" == "--force" ]] && FORCE=true
+export DOTFILES
 
-# ── Arch check ───────────────────────────────────────────────────────────────
+export BACKUP="$HOME/.dotfiles-backup-$(date +%Y%m%d%H%M%S)"
+export FORCE=false
+
+ALL_MODULES=(
+    paru
+    shell
+    cli
+    hyprland
+    audio
+    bluetooth
+    nvidia
+    fonts
+    theme
+    apps
+    dev-base
+    dev-js
+    dev-python
+    dev-java
+    containers
+    dotfiles
+)
+
+usage() {
+    echo "Usage: $0 [--force] [module1 module2 ...]"
+    echo ""
+    echo "Available modules:"
+    for m in "${ALL_MODULES[@]}"; do
+        echo "  $m"
+    done
+    echo ""
+    echo "Examples:"
+    echo "  $0                        — run all modules"
+    echo "  $0 dev-js dev-python      — run only those modules"
+    echo "  $0 --force dotfiles       — run dotfiles module with force"
+    exit 0
+}
+
 if ! command -v pacman &>/dev/null; then
     error "This script requires an Arch-based distro (Arch, CachyOS, Manjaro…)"
 fi
 
-# ── paru (AUR helper) ────────────────────────────────────────────────────────
-section "AUR Helper"
-if ! command -v paru &>/dev/null; then
-    info "Installing paru..."
-    sudo pacman -S --needed --noconfirm git base-devel
-    tmp=$(mktemp -d)
-    git clone https://aur.archlinux.org/paru.git "$tmp/paru"
-    (cd "$tmp/paru" && makepkg -si --noconfirm)
-    rm -rf "$tmp"
-    success "paru installed"
-else
-    success "paru already installed"
-fi
-
-# ── Package install helper ───────────────────────────────────────────────────
-install_pkgs() {
-    local label="$1"; shift
-    section "$label"
-    paru -S --needed --noconfirm "$@" && success "Done"
-}
-
-# ── Shell & Terminal ─────────────────────────────────────────────────────────
-install_pkgs "Shell & Terminal" \
-    zsh starship kitty fastfetch neovim \
-    btop duf ripgrep tree pv micro vim vim-plug tmux \
-    wget curl unzip unrar wl-clipboard cliphist
-
-# ── Modern CLI ───────────────────────────────────────────────────────────────
-install_pkgs "Modern CLI" \
-    bat eza fd dust zoxide fzf \
-    lazygit git-delta \
-    tealdeer jq
-
-# ── Hyprland ─────────────────────────────────────────────────────────────────
-install_pkgs "Hyprland" \
-    hyprland hyprpaper hyprpicker hyprshot hyprexpose-git \
-    hyprpanel-bin nwg-dock-hyprland xdg-desktop-portal-hyprland \
-    waybar swaybg swaync wofi uwsm \
-    dunst playerctl brightnessctl
-
-# ── Audio ─────────────────────────────────────────────────────────────────────
-install_pkgs "Audio (PipeWire)" \
-    pipewire pipewire-alsa pipewire-jack pipewire-pulse wireplumber \
-    lib32-pipewire lib32-pipewire-jack pavucontrol
-
-# ── Bluetooth ─────────────────────────────────────────────────────────────────
-install_pkgs "Bluetooth" \
-    bluez bluez-utils blueman
-
-# ── NVIDIA ───────────────────────────────────────────────────────────────────
-install_pkgs "NVIDIA" \
-    nvidia-open-dkms nvidia-utils nvidia-settings \
-    lib32-nvidia-utils lib32-opencl-nvidia opencl-nvidia \
-    libva-nvidia-driver vulkan-icd-loader lib32-vulkan-icd-loader egl-wayland
-
-# ── Fonts ─────────────────────────────────────────────────────────────────────
-install_pkgs "Fonts" \
-    ttf-jetbrains-mono-nerd ttf-cascadia-code-nerd ttf-firacode-nerd ttf-meslo-nerd \
-    noto-fonts noto-fonts-emoji noto-fonts-cjk \
-    ttf-liberation ttf-dejavu awesome-terminal-fonts \
-    ttf-nerd-fonts-symbols-common ttf-nerd-fonts-symbols-mono woff2-font-awesome
-
-# ── Theme & Appearance ────────────────────────────────────────────────────────
-install_pkgs "Theme & Appearance" \
-    catppuccin-gtk-theme-mocha kvantum kvantum-theme-catppuccin-git \
-    papirus-icon-theme qt5ct qt6ct
-
-# ── Applications ──────────────────────────────────────────────────────────────
-install_pkgs "Applications" \
-    brave-bin firefox librewolf-bin \
-    visual-studio-code-bin kate dolphin \
-    mpv vlc-plugins-all imv \
-    steam protonup-qt openrgb piper \
-    flameshot satty spectacle \
-    flatpak meld pavucontrol
-
-# ── Development ───────────────────────────────────────────────────────────────
-install_pkgs "Development" \
-    git github-cli openssh \
-    go rustup \
-    nodejs npm yarn nvm bun pnpm \
-    python python-pip python-pipx \
-    jdk-openjdk maven php
-
-# ── Containers (optional) ─────────────────────────────────────────────────────
-section "Containers (optional)"
-if command -v docker &>/dev/null; then
-    skip "Docker already installed"
-elif command -v podman &>/dev/null; then
-    skip "Podman already installed"
-else
-    ask "Install a container runtime? [1] Docker  [2] Podman  [3] Skip"
-    read -r container_choice
-    case "$container_choice" in
-        1)
-            paru -S --needed --noconfirm docker docker-compose
-            sudo systemctl enable --now docker
-            sudo usermod -aG docker "$USER"
-            success "Docker installed — re-login for group to take effect"
-            ;;
-        2)
-            paru -S --needed --noconfirm podman podman-compose
-            success "Podman installed"
-            ;;
-        *)
-            info "Skipping containers"
-            ;;
+REQUESTED=()
+for arg in "$@"; do
+    case "$arg" in
+        --force) export FORCE=true ;;
+        --help|-h) usage ;;
+        *) REQUESTED+=("$arg") ;;
     esac
-fi
-
-# ── Enable systemd services ───────────────────────────────────────────────────
-section "Services"
-systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null && success "PipeWire enabled"
-sudo systemctl enable --now bluetooth 2>/dev/null && success "Bluetooth enabled"
-sudo systemctl enable --now NetworkManager 2>/dev/null && success "NetworkManager enabled"
-
-# ── Post-install setup ────────────────────────────────────────────────────────
-section "Post-install"
-
-info "Setting up Rust stable toolchain..."
-rustup default stable 2>/dev/null && success "Rust stable set"
-
-info "Updating tealdeer cache..."
-tldr --update 2>/dev/null && success "tldr cache updated"
-
-if ! git config --global core.pager | grep -q delta 2>/dev/null; then
-    info "Configuring git delta pager..."
-    git config --global core.pager delta
-    git config --global interactive.diffFilter "delta --color-only"
-    git config --global delta.navigate true
-    git config --global delta.side-by-side true
-    git config --global merge.conflictStyle zdiff3
-    success "git delta configured"
-else
-    skip "git delta already configured"
-fi
-
-if [ ! -d "$HOME/.config/nvim" ]; then
-    info "Cloning LazyVim starter..."
-    git clone https://github.com/LazyVim/starter "$HOME/.config/nvim"
-    rm -rf "$HOME/.config/nvim/.git"
-    success "LazyVim installed at ~/.config/nvim"
-else
-    skip "~/.config/nvim already exists — skipping LazyVim"
-fi
-
-# ── Symlinks ──────────────────────────────────────────────────────────────────
-section "Dotfiles${FORCE:+ (force mode — will overwrite)}"
-
-link() {
-    local rel="$1"
-    local src="$DOTFILES/$rel"
-    local dst="$HOME/$rel"
-
-    mkdir -p "$(dirname "$dst")"
-
-    if [ -L "$dst" ]; then
-        if [ "$(readlink "$dst")" = "$src" ]; then
-            skip "already linked: $rel"
-            return
-        fi
-        if $FORCE; then
-            ln -sfn "$src" "$dst"
-            success "re-linked: $rel"
-        else
-            warn "symlink exists but points elsewhere: $rel (--force to update)"
-        fi
-        return
-    fi
-
-    if [ -e "$dst" ]; then
-        if $FORCE; then
-            mkdir -p "$BACKUP/$(dirname "$rel")"
-            mv "$dst" "$BACKUP/$rel"
-            warn "backed up: $rel"
-            ln -sfn "$src" "$dst"
-            success "linked: $rel"
-        else
-            warn "skipping $rel — file exists (--force to backup & overwrite)"
-        fi
-        return
-    fi
-
-    ln -sfn "$src" "$dst"
-    success "linked: $rel"
-}
-
-link .zshrc
-link .zshenv
-link .config/starship.toml
-
-link .config/hypr/hyprland.conf
-link .config/hypr/hyprpaper.conf
-link .config/hypr/increase_volume.sh
-link .config/nwg-dock-hyprland/style.css
-link .config/nwg-dock-hyprland/config
-link .config/kitty/kitty.conf
-link .config/kitty/theme.conf
-link .config/waybar/config.jsonc
-link .config/waybar/style.css
-link .config/gtk-3.0/settings.ini
-link .config/gtk-4.0/settings.ini
-
-mkdir -p "$HOME/.scripts"
-for f in "$DOTFILES/.scripts/"*; do
-    [ -e "$f" ] || continue
-    name="$(basename "$f")"
-    dst="$HOME/.scripts/$name"
-    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$f" ]; then
-        skip "already linked: .scripts/$name"
-        continue
-    fi
-    ln -sfn "$f" "$dst"
-    chmod +x "$dst"
-    success "linked: .scripts/$name"
 done
 
-# ── Set zsh as default shell ───────────────────────────────────────────────────
-if [ "$SHELL" != "$(which zsh)" ]; then
-    section "Default Shell"
-    chsh -s "$(which zsh)"
-    success "Default shell set to zsh (re-login to apply)"
+if [ "${#REQUESTED[@]}" -eq 0 ]; then
+    RUN_MODULES=("${ALL_MODULES[@]}")
 else
-    skip "zsh already default shell"
+    RUN_MODULES=("${REQUESTED[@]}")
 fi
 
-echo -e "\n${GREEN}${BOLD}All done!${RESET}"
+$FORCE && warn "Force mode enabled — existing configs will be backed up and overwritten"
+
+FAILED=()
+
+for module in "${RUN_MODULES[@]}"; do
+    script="$DOTFILES/modules/$module.sh"
+    if [ ! -f "$script" ]; then
+        warn "Module not found: $module — skipping"
+        continue
+    fi
+    section "Module: $module"
+    if bash "$script"; then
+        success "Module $module complete"
+    else
+        warn "Module $module exited with errors"
+        FAILED+=("$module")
+    fi
+done
+
+echo ""
+if [ "${#FAILED[@]}" -eq 0 ]; then
+    echo -e "${GREEN}${BOLD}All done!${RESET}"
+else
+    echo -e "${YELLOW}${BOLD}Done with warnings. Failed modules:${RESET}"
+    for m in "${FAILED[@]}"; do
+        echo -e "  ${RED}✗${RESET} $m"
+    done
+fi
+
 $FORCE && [ -d "$BACKUP" ] && echo -e "${YELLOW}Previous files backed up to: $BACKUP${RESET}"
 echo -e "${CYAN}  →${RESET} Re-login or open a new terminal to apply shell changes."
