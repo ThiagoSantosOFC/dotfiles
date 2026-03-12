@@ -27,16 +27,15 @@ alias la='eza -a  --icons --group-directories-first'
 alias lt='eza --tree --icons --level=2'
 alias l='eza --icons --group-directories-first'
 
-# ── bat — view files with syntax highlight, 'cat' untouched ─────────────────
+# ── bat — new names only, 'cat' untouched ───────────────────────────────────
 alias b='bat'
-alias bman='batman'
+alias bcat='bat --pager=never'
+
+# ── dust — new name only, 'du' untouched ────────────────────────────────────
+alias duu='dust'
 
 # ── lazygit ──────────────────────────────────────────────────────────────────
 alias lg='lazygit'
 
-# ── tealdeer ─────────────────────────────────────────────────────────────────
-alias tldr='tldr'
-
 # ── Apps ─────────────────────────────────────────────────────────────────────
 alias vscode='code --enable-features=UseOzonePlatform --ozone-platform=wayland'
-alias vim='nvim'
