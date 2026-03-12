@@ -1,19 +1,15 @@
 #!/bin/bash
 MONITOR=$(XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
+VISIBLE=$(XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 hyprctl layers 2>&1 | grep nwg-dock)
 CURRENT=$(cat /tmp/nwg-dock-monitor 2>/dev/null)
 
-if pgrep -f nwg-dock-hyprland > /dev/null; then
-    if [ "$MONITOR" = "$CURRENT" ]; then
-        pkill -RTMIN+1 nwg-dock-hyprland
-    else
-        pkill -f nwg-dock-hyprland 2>/dev/null
-        sleep 0.4
-        rm -f /tmp/nwg-dock-*.lock 2>/dev/null
-        echo "$MONITOR" > /tmp/nwg-dock-monitor
-        XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 nwg-dock-hyprland -p right -x -o "$MONITOR" -i 48 -r -nolauncher &
-    fi
+if [ -n "$VISIBLE" ] && [ "$MONITOR" = "$CURRENT" ]; then
+    kill -37 "$(pgrep -f nwg-dock-hyprland | head -1)"
 else
+    pkill -f nwg-dock-hyprland 2>/dev/null
+    sleep 0.4
     rm -f /tmp/nwg-dock-*.lock 2>/dev/null
     echo "$MONITOR" > /tmp/nwg-dock-monitor
-    XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 nwg-dock-hyprland -p right -x -o "$MONITOR" -i 48 -r -nolauncher &
+    XDG_RUNTIME_DIR=/run/user/1000 WAYLAND_DISPLAY=wayland-1 \
+        nwg-dock-hyprland -p right -x -o "$MONITOR" -i 48 -r -nolauncher &
 fi
