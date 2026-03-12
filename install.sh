@@ -11,6 +11,7 @@ success() { echo -e "${GREEN}  ✓${RESET} $*"; }
 warn()    { echo -e "${YELLOW}  !${RESET} $*"; }
 error()   { echo -e "${RED}  ✗${RESET} $*"; exit 1; }
 section() { echo -e "\n${BOLD}${CYAN}══ $* ══${RESET}"; }
+ask()     { echo -e "${YELLOW}  ?${RESET} $*"; }
 
 DOTFILES="$(cd "$(dirname "$0")" && pwd)"
 BACKUP="$HOME/.dotfiles-backup-$(date +%Y%m%d%H%M%S)"
@@ -43,9 +44,15 @@ install_pkgs() {
 
 # ── Shell & Terminal ─────────────────────────────────────────────────────────
 install_pkgs "Shell & Terminal" \
-    zsh starship kitty fastfetch \
-    btop duf ripgrep tree pv micro vim vim-plug \
+    zsh starship kitty fastfetch neovim \
+    btop duf ripgrep tree pv micro vim vim-plug tmux \
     wget curl unzip unrar wl-clipboard cliphist
+
+# ── Modern CLI ───────────────────────────────────────────────────────────────
+install_pkgs "Modern CLI" \
+    bat eza fd dust zoxide fzf \
+    lazygit git-delta \
+    tealdeer jq
 
 # ── Hyprland ─────────────────────────────────────────────────────────────────
 install_pkgs "Hyprland" \
@@ -93,15 +100,62 @@ install_pkgs "Applications" \
 # ── Development ───────────────────────────────────────────────────────────────
 install_pkgs "Development" \
     git github-cli openssh \
-    nodejs npm yarn nvm \
+    go rustup \
+    nodejs npm yarn nvm bun pnpm \
     python python-pip python-pipx \
     jdk-openjdk maven php
+
+# ── Containers (optional) ─────────────────────────────────────────────────────
+section "Containers (optional)"
+ask "Install a container runtime? [1] Docker  [2] Podman  [3] Skip"
+read -r container_choice
+case "$container_choice" in
+    1)
+        paru -S --needed --noconfirm docker docker-compose
+        sudo systemctl enable --now docker
+        sudo usermod -aG docker "$USER"
+        success "Docker installed — re-login for group to take effect"
+        ;;
+    2)
+        paru -S --needed --noconfirm podman podman-compose
+        success "Podman installed"
+        ;;
+    *)
+        info "Skipping containers"
+        ;;
+esac
 
 # ── Enable systemd services ───────────────────────────────────────────────────
 section "Services"
 systemctl --user enable --now pipewire pipewire-pulse wireplumber 2>/dev/null && success "PipeWire enabled"
 sudo systemctl enable --now bluetooth 2>/dev/null && success "Bluetooth enabled"
 sudo systemctl enable --now NetworkManager 2>/dev/null && success "NetworkManager enabled"
+
+# ── Post-install setup ────────────────────────────────────────────────────────
+section "Post-install"
+
+info "Setting up Rust stable toolchain..."
+rustup default stable 2>/dev/null && success "Rust stable set"
+
+info "Updating tealdeer cache..."
+tldr --update 2>/dev/null && success "tldr cache updated"
+
+info "Configuring git to use delta as pager..."
+git config --global core.pager delta
+git config --global interactive.diffFilter "delta --color-only"
+git config --global delta.navigate true
+git config --global delta.side-by-side true
+git config --global merge.conflictStyle zdiff3
+success "git delta configured"
+
+if [ ! -d "$HOME/.config/nvim" ]; then
+    info "Cloning LazyVim starter..."
+    git clone https://github.com/LazyVim/starter "$HOME/.config/nvim"
+    rm -rf "$HOME/.config/nvim/.git"
+    success "LazyVim installed at ~/.config/nvim"
+else
+    warn "~/.config/nvim already exists — skipping LazyVim clone"
+fi
 
 # ── Symlinks ──────────────────────────────────────────────────────────────────
 section "Dotfiles"
@@ -153,3 +207,4 @@ fi
 
 echo -e "\n${GREEN}${BOLD}All done!${RESET}"
 [ -d "$BACKUP" ] && echo -e "${YELLOW}Previous files backed up to: $BACKUP${RESET}"
+echo -e "${CYAN}  →${RESET} Re-login or open a new terminal to apply shell changes."
