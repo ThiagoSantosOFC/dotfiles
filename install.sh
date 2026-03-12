@@ -20,6 +20,10 @@ link() {
 
 echo "Installing dotfiles from $DOTFILES"
 
+link .zshrc
+link .zshenv
+link .config/starship.toml
+
 link .config/hypr/hyprland.conf
 link .config/hypr/hyprpaper.conf
 link .config/hypr/increase_volume.sh
