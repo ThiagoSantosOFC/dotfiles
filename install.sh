@@ -43,8 +43,12 @@ usage() {
         echo "  $m"
     done
     echo ""
+    echo "Meta-modules (groups):"
+    echo "  dev   — runs dev-base + dev-js + dev-python + dev-java"
+    echo ""
     echo "Examples:"
     echo "  $0                        — run all modules"
+    echo "  $0 dev                    — install all dev tooling"
     echo "  $0 dev-js dev-python      — run only those modules"
     echo "  $0 --force dotfiles       — run dotfiles module with force"
     exit 0
